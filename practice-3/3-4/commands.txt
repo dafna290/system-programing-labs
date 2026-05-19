@@ -1,0 +1,105 @@
+Задание 3-4: Диагностика сетевых соединений
+Вариант 6 - Получение HTTP-заголовков локального сервера
+Сервер: Python SimpleHTTP на порту 8080 (PID: 419)
+
+1. Получение HTTP-заголовков через curl -I
+$ curl -I http://localhost:8080
+HTTP/1.0 200 OK
+Server: SimpleHTTP/0.6 Python/3.12.3
+Date: Tue, 19 May 2026 16:50:31 GMT
+Content-type: text/html; charset=utf-8
+Content-Length: 3661
+
+2. Детальный запрос через curl -v
+$ curl -v http://localhost:8080 2>&1 | head -20
+* Host localhost:8080 was resolved.
+* IPv6: ::1
+* IPv4: 127.0.0.1
+*   Trying [::1]:8080...
+* connect to ::1 port 8080 from ::1 port 53782 failed: Connection refused
+*   Trying 127.0.0.1:8080...
+* Connected to localhost (127.0.0.1) port 8080
+> GET / HTTP/1.1
+> Host: localhost:8080
+> User-Agent: curl/8.5.0
+> Accept: */*
+> 
+* HTTP 1.0, assume close after body
+< HTTP/1.0 200 OK
+< Server: SimpleHTTP/0.6 Python/3.12.3
+< Date: Tue, 19 May 2026 16:50:41 GMT
+< Content-type: text/html; charset=utf-8
+< Content-Length: 3661
+
+3. Проверка доступности через ping
+$ ping -c 4 localhost
+PING localhost (127.0.0.1) 56(84) bytes of data.
+64 bytes from localhost (127.0.0.1): icmp_seq=1 ttl=64 time=0.056 ms
+64 bytes from localhost (127.0.0.1): icmp_seq=2 ttl=64 time=0.083 ms
+64 bytes from localhost (127.0.0.1): icmp_seq=3 ttl=64 time=0.045 ms
+64 bytes from localhost (127.0.0.1): icmp_seq=4 ttl=64 time=0.022 ms
+
+--- localhost ping statistics ---
+4 packets transmitted, 4 received, 0% packet loss, time 3086ms
+rtt min/avg/max/mdev = 0.022/0.051/0.083/0.021 ms
+
+4. Просмотр сокетов через ss
+$ ss -tlnp | grep 8080
+LISTEN 0      5             0.0.0.0:8080      0.0.0.0:*    users:(("python3",pid=419,fd=3))
+
+$ ss -tulpn | grep LISTEN
+tcp   LISTEN 0      5             0.0.0.0:8080      0.0.0.0:*    users:(("python3",pid=419,fd=3))
+
+5. Просмотр через netstat
+$ netstat -tulpn | grep 8080
+tcp        0      0 0.0.0.0:8080            0.0.0.0:*               LISTEN      419/python3
+
+$ netstat -an | grep 8080
+tcp        0      0 0.0.0.0:8080            0.0.0.0:*               LISTEN     
+tcp        0      0 127.0.0.1:8080          127.0.0.1:48200         TIME_WAIT  
+
+6. Поиск процесса через lsof
+$ lsof -i :8080
+COMMAND PID  USER   FD   TYPE DEVICE SIZE/OFF NODE NAME
+python3 419 dafna    3u  IPv4   3630      0t0  TCP *:http-alt (LISTEN)
+
+$ lsof -i TCP:8080
+COMMAND PID  USER   FD   TYPE DEVICE SIZE/OFF NODE NAME
+python3 419 dafna    3u  IPv4   3630      0t0  TCP *:http-alt (LISTEN)
+
+7. Подключение через netcat (nc)
+$ echo -e "GET / HTTP/1.1\r\nHost: localhost\r\n\r\n" | nc localhost 8080
+HTTP/1.0 200 OK
+Server: SimpleHTTP/0.6 Python/3.12.3
+Date: Tue, 19 May 2026 16:51:56 GMT
+Content-type: text/html; charset=utf-8
+Content-Length: 3661
+
+[HTML content follows...]
+
+8. Получение полного содержимого через curl
+$ curl http://localhost:8080
+[Полный HTML вывод - директория /home/dafna]
+
+9. Заголовки без вывода тела
+$ curl -I http://localhost:8080 2>/dev/null | head -10
+HTTP/1.0 200 OK
+Server: SimpleHTTP/0.6 Python/3.12.3
+Date: Tue, 19 May 2026 16:52:14 GMT
+Content-type: text/html; charset=utf-8
+Content-Length: 3661
+
+Информация о сервере:
+- Процесс: python3 (PID: 419)
+- Порт: 8080 (http-alt)
+- Семейство адресов: IPv4
+- Состояние: LISTEN
+- Тип сервера: SimpleHTTP/0.6 Python/3.12.3
+
+Анализ заголовков:
+HTTP/1.0 200 OK - успешный ответ
+Server: SimpleHTTP/0.6 Python/3.12.3 - идентификация сервера
+Date: текущая дата и время сервера
+Content-type: text/html; charset=utf-8 - тип содержимого
+Content-Length: 3661 - размер тела ответа в байтах
+
